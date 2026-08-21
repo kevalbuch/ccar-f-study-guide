@@ -290,6 +290,7 @@ main {
   padding: 2.75rem clamp(1.5rem, 4.5vw, 4rem) 6rem;
 }
 .scrim { position: fixed; inset: var(--topbar-h) 0 0; background: rgba(0,0,0,.75); backdrop-filter: blur(6px); z-index: 29; border: 0; }
+.scrim[hidden], [hidden] { display: none !important; pointer-events: none !important; }
 
 @media (max-width: 900px) {
   .sidebar {
@@ -628,7 +629,18 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-fam
 .figure svg .boxBad { fill: rgba(225, 29, 72, 0.28); stroke: #f43f5e; }
 .figure svg .arrow { stroke: #f97316; stroke-width: 2; }
 .figure svg .arrowhead { fill: #f97316; stroke: none; }
-.figure svg .dashed { stroke-dasharray: 4 4; }
+.palette-scrim,
+.diag-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
 
 .diagram-modal-box {
   max-width: 92vw;
