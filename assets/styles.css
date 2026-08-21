@@ -649,39 +649,49 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-fam
 .figure svg { width: 100%; height: auto; display: block; min-width: 440px; }
 .figure figcaption { font-size: .84rem; color: var(--ink-3); margin-top: .75rem; font-family: var(--mono); text-align: center; }
 
-svg text,
 .figure svg text,
 .diagram-modal-body svg text {
-  fill: #f8fafc !important;
+  fill: #f1f5f9;
   stroke: none !important;
   stroke-width: 0 !important;
-  font-family: var(--sans) !important;
-  font-weight: 500 !important;
-  paint-order: fill !important;
-  -webkit-font-smoothing: antialiased !important;
-  -moz-osx-font-smoothing: grayscale !important;
-  text-rendering: optimizeLegibility !important;
+  font-family: var(--sans);
+  font-weight: 500;
+  paint-order: fill;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-svg text.mono,
 .figure svg text.mono,
 .diagram-modal-body svg text.mono {
-  font-family: var(--mono) !important;
+  font-family: var(--mono);
 }
 
-svg text.dim,
 .figure svg text.dim,
 .diagram-modal-body svg text.dim {
   fill: #94a3b8 !important;
 }
 
-.figure svg .stroke { stroke: rgba(255, 255, 255, 0.25); stroke-width: 1.5; }
-.figure svg .box { fill: #1e293b; stroke: rgba(255, 255, 255, 0.28); stroke-width: 1.5; }
-.figure svg .boxA { fill: rgba(179, 86, 57, 0.25); stroke: #d97757; stroke-width: 1.8; }
-.figure svg .boxOk { fill: rgba(4, 128, 89, 0.3); stroke: #10b981; stroke-width: 1.8; }
-.figure svg .boxBad { fill: rgba(225, 29, 72, 0.3); stroke: #f43f5e; stroke-width: 1.8; }
-.figure svg .arrow { stroke: #f97316; stroke-width: 2.2; }
-.figure svg .arrowhead { fill: #f97316; stroke: none !important; stroke-width: 0 !important; }
+.figure svg .stroke,
+.diagram-modal-body svg .stroke { stroke: rgba(255, 255, 255, 0.25); stroke-width: 1.5; }
+
+.figure svg .box,
+.diagram-modal-body svg .box { fill: #1e293b; stroke: rgba(255, 255, 255, 0.28); stroke-width: 1.5; }
+
+.figure svg .boxA,
+.diagram-modal-body svg .boxA { fill: rgba(179, 86, 57, 0.25); stroke: #d97757; stroke-width: 1.8; }
+
+.figure svg .boxOk,
+.diagram-modal-body svg .boxOk { fill: rgba(4, 128, 89, 0.3); stroke: #10b981; stroke-width: 1.8; }
+
+.figure svg .boxBad,
+.diagram-modal-body svg .boxBad { fill: rgba(225, 29, 72, 0.3); stroke: #f43f5e; stroke-width: 1.8; }
+
+.figure svg .arrow,
+.diagram-modal-body svg .arrow { stroke: #f97316; stroke-width: 2.2; }
+
+.figure svg .arrowhead,
+.diagram-modal-body svg .arrowhead { fill: #f97316; stroke: none !important; stroke-width: 0 !important; }
 
 .palette-scrim,
 .diag-modal-backdrop {
