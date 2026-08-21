@@ -1,0 +1,578 @@
+
+Complete Study Guide — Claude Architecture CertificationI'll teach you this material the way you'd actually need to think about it on the exam. I'll go topic by topic, explain the why behind every concept, then show you the repeated question patterns with explanations.
+PART 1 — THE FOUNDATIONAL MENTAL MODEL
+Before any specific topic, internalize these three ideas. Almost every question on this exam is a test of one of them.
+Idea 1: Probabilistic vs Deterministic Enforcement
+This is the single most important concept on the exam. Probabilistic enforcement = telling Claude what to do via system prompts, instructions, or examples. Claude follows instructions most of the time, but never 100% of the time. Deterministic enforcement = code that runs outside of Claude and either allows or blocks an action. This is 100% guaranteed. The rule: Match the enforcement mechanism to the reliability requirement.
+
+- "Claude should usually be polite" → prompt instruction (probabilistic is fine)
+- "Refunds over $500 must never be processed without human approval" → PreToolUse hook that intercepts the tool call and blocks it (deterministic required)
+- "Always verify customer identity before processing refunds" → programmatic prerequisite gate (deterministic required, because money is involved)
+- "Never push code directly to main branch" → PreToolUse hook (deterministic, because compliance)
+How to spot this on the exam: Whenever the question contains the words "guaranteed," "100%," "must never," "compliance," "financial," or "irreversible," the correct answer is a hook, gate, or programmatic check — never "add to the system prompt."
+Idea 2: The Agentic Loop is Controlled by stop_reason
+When you call Claude in an agentic application, the response contains a stop_reason field. This — and ONLY this — controls the loop:
+
+- stop_reason: "tool_use" → Claude wants to call a tool. Execute the tool, append the result to conversation history, and call Claude again.
+- stop_reason: "end_turn" → Claude finished its CD turn. Stop the loop.
+- stop_reason: "max_tokens" → Response was truncated. Request continuation.
+The trap: Many wrong answers suggest parsing Claude's text for phrases like "I have completed your request" or "Is there anything else?" — this is an anti-pattern. The text is unreliable; the field is reliable. Important nuance: end_turn ends the current turn, not the whole user interaction. If the user sends a new message after end_turn, you continue the same session by appending the new message to history. You don't start a new session.
+Idea 3: Tool Descriptions Are the Primary Mechanism for Tool Selection
+When Claude has multiple tools available and picks the wrong one, the fix is almost always rewriting the tool descriptions — not adding examples, not adding routing classifiers, not consolidating tools, not switching models. A good tool description includes:
+
+- What the tool does (purpose)
+- What inputs it accepts (format, examples)
+- What it returns
+- When to use it
+- When NOT to use it (boundaries vs similar tools)
+- Example queries
+If your description is "Searches code" — that's the bug. Rewrite it to be specific and bounded against similar tools.
+PART 2 — TOPIC-BY-TOPIC EXPLANATION
+Topic A: The Agentic Loop
+An agentic loop is the simple control structure that makes Claude into an "agent":
+
+1. Send conversation + tools to Claude
+2. Receive response
+3. If stop_reason == "tool_use": run the requested tool, append result, go to 1
+4. If stop_reason == "end_turn": return final text to user, exit loop
+Repeated question pattern: "Claude returns stop_reason: 'tool_use' with a request for [some tool]. What does the loop do?" Answer Execute the tool, append the tool_result to conversation history, call Claude again with the full updated history. Repeated question pattern: "Claude completes a refund and returns end_turn. The user immediately asks a follow-up. What happens?" Answer: Continue the same session by appending the new user message. end_turn does not end the session, only the turn. Repeated trap: Setting a max iteration count (like 10) as the primary stop mechanism. Wrong — stop_reason is the primary mechanism. A max iteration is only a safety fallback.
+Topic B: Tool Selection Reliability
+When Claude calls the wrong tool, there are five possible fixes, but only one is usually correct:
+
+1. Rewrite tool descriptions ← almost always the right answer
+2. Add few-shot examples → secondary fix, not the primary one
+3. Consolidate tools → almost always wrong
+4. Add a routing classifier → almost always wrong (treats symptom)
+5. Switch to a more capable model → almost always wrong (distractor)
+Why "rewrite descriptions" works: Claude's tool selection is driven by the descriptions. Vague descriptions like "Searches code" or "Gets customer" force Claude to guess. Specific descriptions with explicit "use when / do not use when" eliminate guessing. Tool overload is a separate problem: When an agent has more than ~10 tools, selection accuracy degrades regardless of description quality. The fix here is to reduce the tool set to only the 4–5 tools the agent actually needs for its role. A coordinator agent giving subagents tools "just in case" causes this problem. Repeated pattern: "Production logs show the agent confuses tool A with tool B. Both have minimal one-line descriptions." Answer: Rewrite descriptions to include inputs, outputs, when to use, when NOT to use, and explicit boundaries vs the other tool.
+Topic C: Few-Shot Examples — The Right Way
+Few-shot examples are powerful but easy to use wrong. Wrong way: "Add 10–15 examples of typical, unambiguous cases." This wastes prompt space and doesn't help with edge cases. Right way: "Add 3–6 examples that target ambiguous scenarios at the decision boundary, each showing reasoning for why one option was chosen over plausible alternatives." The reason: Claude already handles unambiguous cases. Few-shot examples should teach Claude how to handle the hard cases — the ones where reasonable choices could go either way. Repeated question pattern: "Tool selection works for clear cases but fails on ambiguous ones. You decide to add few-shot examples." Answer: 4–6 examples targeting ambiguous scenarios with explicit reasoning, not 10–15 examples of clear cases.
+Topic D: Customer Support — Escalation Logic
+This is heavily tested. Memorize these rules: Always escalate when:
+
+- Customer explicitly and repeatedly requests a human ("I want to speak to a human right now") — escalate immediately, do not try to resolve first
+- Policy gap exists (e.g., customer asks for competitor price match and your policy is silent on competitor matching)
+- Tool returns a business error like "amount exceeds autonomous limit, requires manager approval"
+- The case is outside the standard policy and requires policy interpretation
+Do NOT escalate just because:
+
+- Customer is frustrated (acknowledge empathetically, then resolve if you can)
+- The request is multi-concern (decompose and handle in parallel)
+- Self-confidence is below 100% (self-reported confidence is unreliable; use explicit policy criteria)
+- Tool data conflicts with customer claim (you can present the contradictory evidence respectfully)
+Repeated question pattern: "Customer is frustrated about a 20-minute wait but the issue is a simple shipping delay you can resolve." Answer: Acknowledge frustration empathetically, then resolve the issue. Don't escalate. Repeated question pattern: "Customer requests price match against competitor, but your policies only cover own-site adjustments and are silent on competitor pricing." Answer: Escalate — policy gap requires human interpretation.
+Topic E: Customer Support — Identity Verification & Tool Ordering
+Whenever financial operations are involved, identity verification must come first and must be enforced programmatically, not by prompt. The pattern: get_customer → lookup_order → process_refund To enforce this 100%, use a programmatic prerequisite gate — code in the orchestration layer that blocks process_refund from executing unless get_customer has already returned a verified customer ID in the current session. Why prompt instructions are insufficient: "Always call get_customer first" works most of the time, but for financial operations, "most of the time" is not good enough. Repeated question pattern: "Agent skips get_customer and processes refunds with wrong customer 12% of the time." Answer: Programmatic prerequisite gate that blocks lookup_order and process_refund until get_customer has run. Not a system prompt instruction. Not few-shot examples. Related concept — multi-concern requests: When a customer reports multiple issues in one message (refund + address change), the right pattern is to call get_customer once, store the result, and use it for both concerns. Calling the same tool twice with the same parameters wastes API calls and context.
+Topic F: Multi-Concern Request Handling
+When a customer message contains multiple distinct concerns: Wrong: Address only the first concern; ask the customer to submit issues separately; escalate because it's "complex"; handle them sequentially in isolation. Right: Decompose the request into distinct concerns, investigate each in parallel using shared customer context, then synthesize a unified resolution covering all concerns. The key word here is parallel with shared context. You verify identity once, then run order lookups in parallel for both orders, then process resolutions.
+Topic G: Error Handling and Structured Errors
+When a tool fails, the response must give the agent enough information to make an intelligent recovery decision. This requires structured error context, not generic messages. A bad error response: {"error": "lookup_order failed"} A good error response:
+{ "isError": true, "errorCategory": "transient", "isRetryable": true, "description": "Order lookup service timeout after 30s", "attemptedQuery": {"orderId": "ORD-12345"} }
+The fields enable Claude to:
+
+- Know what type of error occurred (errorCategory)
+- Decide whether to retry (isRetryable)
+- Communicate intelligently to the user (description)
+- Try a recovery strategy (knowing what was attempted)
+Important distinction: A query that successfully returns zero results is NOT an error. If get_customer finds no matching customer, return isError: false with empty results — not isError: true. Errors are for failures, not for valid empty results. Repeated question pattern: "Tool returns business error 'amount exceeds $500 autonomous limit, requires manager approval' with a customerMessage field." Answer: Communicate the customer-friendly message to the customer and escalate to a human. Don't retry. Don't split the refund into smaller transactions.
+Topic H: Multi-Agent Research Systems
+A multi-agent system uses a coordinator that delegates work to subagents (web search, document analysis, synthesis, etc.). The hub-and-spoke rule: All communication goes through the coordinator. Subagents never communicate directly with each other. Why? The coordinator provides:
+
+- Observability — it can log and monitor all information flow
+- Consistent error handling — failures get handled the same way every time
+- Controlled routing — the coordinator decides what each subagent sees
+If subagents talk directly, you lose all three properties. This is tested repeatedly. Parallel execution: To run subagents in parallel, the coordinator emits multiple Task tool calls in a single response. The runtime executes them in parallel. Sequential calls (one Task per turn) are wasteful when subagents work on independent data. Coverage gaps trace to coordinator decomposition: If your research system was asked about "AI in creative industries" and the final report only covers visual arts (missing music, film, writing), the failure is in the coordinator's task decomposition — it assigned only visual-arts subtasks. The subagents performed correctly within their narrow scope. The fix is making the coordinator's prompt include explicit coverage requirements.
+Topic I: Subagent Output Format and Source Attribution
+A massively important concept: subagent outputs must be structured data with source attribution, not natural-language summaries. Wrong: Subagent returns: "I found several articles. Findings suggest X is increasing and Y is decreasing." Right: Subagent returns structured data:
+{ "claims": [ { "claim": "X is increasing", "source_name": "Smith 2024", "source_url": "...", "evidence_excerpt": "...", "publication_date": "2024-03" } ] }
+Why this matters: When the synthesis subagent later combines findings from multiple sources, source attribution gets lost if the upstream subagents already merged everything into prose. The structured format preserves attribution all the way through synthesis. Repeated question pattern: "Final report says 'AI adoption increased by 67%' but a reviewer can't find which source supports this." Answer: Source attribution was lost during a summarization step. The fix is requiring upstream subagents to output structured claim-source mappings that downstream synthesis must preserve.
+Topic J: Conflict Resolution
+When two credible sources disagree (e.g., one says 45% growth, another says 31%), the synthesis must preserve both with attribution and explicit annotation. Wrong approaches:
+
+- Average them (statistically invalid)
+- Pick the more recent one (might lose context)
+- Pick the more "authoritative" one (subjective)
+- Hide the conflict
+- Escalate to coordinator before continuing
+Right approach: Include both with full source attribution, explicitly annotate that they conflict, and let the human reader/downstream system understand the data landscape. Special case — temporal differences: If two sources show different values from different time periods (Q1 2022 vs Q4 2024), this is not a conflict, it's a trend. The synthesis must include publication dates and present both as data points across time.
+Topic K: Schema Design for Structured Extraction
+This is the entire foundation of the structured data extraction domain. The core problem: Required fields cause the model to fabricate values when the source document doesn't contain them. If you mark cve_reference as required and the document doesn't have a CVE, the model invents a plausible-looking one. The solution: Make fields nullable when they might be absent. Use companion fields to disambiguate. Pattern 1: Approximate values
+contract_value_exact: nullable number contract_value_min: nullable number
+contract_value_max: nullable number is_approximate: boolean
+Pattern 2: Categorical with overflow
+contract_type: enum ["service", "purchase", "employment", "lease", "other"] contract_type_detail: nullable string // populated when type is "other"
+Pattern 3: Multi-value support
+lead_investigators: array of { name: string, role: enum ["academic_lead", "industry_lead", "co-investigator"] }
+Pattern 4: Distinguishing absence from "not measured" For arrays where empty has different meanings:
+
+- Empty array [] = "the document explicitly says no items existed"
+- null = "the document doesn't address this"
+Pattern 5: Currency/units Don't auto-convert in the schema. Extract original currency + amount, store as companion fields, and let downstream systems convert.
+Topic L: tool_use vs Plain JSON Output
+Two ways to get structured output from Claude:
+
+1. Prompt the model to output JSON text — model generates text that you parse. Risk: malformed JSON, markdown code fences, preamble text.
+2. Use tool_use with a JSON schema — model fills schema fields. Eliminates syntax errors entirely.
+The correct choice for structured extraction is always tool_use. But understand its limit: tool_use eliminates syntax errors. It does NOT eliminate semantic errors. If line items don't sum to the total, that's semantic, and tool_use can't catch it. Semantic validation requires application-level logic (calculate the sum yourself, compare to the stated total). Repeated trap: "Output sometimes includes markdown code fences." The temptation is to add a post-processing regex to strip fences. The right answer is to switch from prompted-JSON to tool_use.
+Topic M: CI/CD with Claude Code — Critical Flags
+Memorize these:
+
+- claude -p "prompt" — non-interactive mode (also called print/headless). Use this in CI pipelines. Each invocation gets a fresh, isolated context.
+- --output-format json — produces machine-parseable JSON instead of markdown.
+- --json-schema schema.json — enforces a specific schema for the JSON output.
+Repeated question pattern: "Pipeline runs claude 'review this PR' and hangs indefinitely waiting for input." Answer: Add the -p flag. (Not --batch, not CLAUDE_HEADLESS=true, not stdin redirect.) Important property of -p: Each invocation is a fresh, isolated context. Two -p invocations don't share session state. This is what enables independent code review — see Topic N.
+Topic N: The Self-Review Limitation
+Key insight: When the same Claude session generates code and is then asked to review it, the reasoning context from generation biases the review. Self-review catches significantly fewer issues than independent review. The fix: Run review in a separate -p invocation with no access to the generation session's context. Fresh context eliminates the reasoning bias. This is a recurring exam question. Memorize: self-review is biased; independent review via separate -p is correct. Wrong approaches:
+
+- "Add 'review your code critically' to the same session" — doesn't fix bias
+- "Use extended thinking mode for deeper analysis" — still biased
+- "Include test files as context" — doesn't fix bias
+Topic O: Multi-Pass Code Review
+For PRs that modify many files (14+), single-pass review produces inconsistent quality, missed bugs, and contradictory feedback (flagging a pattern in one file but accepting it in another). The fix: Multi-pass architecture
+
+1. Per-file pass: Analyze each file individually for local issues
+2. Integration pass: Examine cross-file data flow and interface consistency
+Each file gets dedicated attention in pass 1; cross-file relationships get dedicated attention in pass 2. Wrong approaches:
+
+- Use a more capable model with bigger context (treats symptom)
+- Run three full-PR reviews and intersect (still contradictory)
+- Force developers to submit smaller PRs (organizational, not architectural fix)
+Topic P: Batch API vs Synchronous API
+The Message Batches API offers 50% cost savings but takes up to 24 hours to process. Use Batch API for: latency-tolerant workloads — overnight technical debt analysis, weekly security audits, nightly test generation. Use Synchronous API for: blocking pre-merge checks (developers can't wait 24 hours), real-time PR style checks, anything where developers wait on results. Repeated question pattern: "Manager wants to switch all CI workflows to Batch API for cost savings. You have a blocking pre-merge check and a nightly debt report." Answer: Batch API for the nightly report only. Keep synchronous API for the pre-merge check. Mixing approaches by latency tolerance is correct. Batch API mechanics: When you submit a batch, attach a custom_id to each request. The response includes the same custom_id, allowing you to correlate results back to specific input files. Don't rely on positional ordering. Repeated trap: "Batch processing lacks request correlation." Wrong — it has custom_id for exactly this. The real constraint is the 24-hour latency. Tool calling constraint: Batch processing doesn't support iterative tool calling (where Claude calls a tool, gets a result, and continues). If your workflow needs Claude to request files mid-analysis via tool calls, you cannot use the Batch API.
+Topic Q: CLAUDE.md and Configuration Scope
+Project-scope (shared via version control):
+
+- .claude/CLAUDE.md — project-wide instructions
+- .claude/rules/ — topic-specific rule files with YAML frontmatter for path scoping
+- .claude/commands/ — team slash commands
+- .claude/skills/ — team skills
+- .mcp.json — MCP server configuration
+User-scope (personal, not committed):
+
+- ~/.claude/CLAUDE.md — user-level instructions
+- ~/.claude/skills/ — personal skills
+- ~/.claude/commands/ — personal commands
+Repeated question pattern: "Three developers see Claude follow a coding rule, but a fourth new developer doesn't, even though they all have the latest pulled code." Answer: The rule is in the original developers' user-level CLAUDE.md (~/.claude/), not in the project's .claude/CLAUDE.md. Move it to project scope so version control distributes it. Repeated question pattern: "A developer wants to customize the team's /commit skill for personal workflow without affecting teammates." Answer: Create the personal version in ~/.claude/skills/ with the different name. Repeated question pattern: "How do you organize a 500-line CLAUDE.md?" Answer: Split into topic-specific files in .claude/rules/. Use YAML frontmatter with path globs to scope rules to specific directories or file types.
+Topic R: Skills, Plan Mode, and Context Forking
+Skills are reusable prompts that the agent invokes via slash commands. The context: fork frontmatter is crucial: it makes the skill run in an isolated sub-agent context. The skill's verbose output stays isolated, and only the summary returns to the main session. Repeated question pattern: "An /analyze-codebase skill produces 8,000 tokens of verbose output, polluting the main conversation." Answer: Add context: fork to the SKILL.md frontmatter. Plan mode is for tasks with architectural ambiguity — multiple valid approaches, unknown dependencies, large scope decisions.
+
+- Use plan mode for: microservice restructuring, REST-to-GraphQL migration, integration approach decisions
+- Use direct execution for: well-scoped single-file bug fixes, adding a validation conditional, applying clear changes
+Repeated question pattern: "Task: 'Add Slack support' but Slack offers webhooks vs bot tokens vs Slack Apps with different tradeoffs." Answer: Plan mode — explore options before implementing.
+Topic S: Built-in Tools — Read, Write, Edit, Bash, Grep, Glob
+Know which tool to use when:
+
+- Read — load file contents
+- Write — overwrite entire file (only when generating from scratch)
+- Edit — targeted modification using unique anchor text (preferred over Read+Write for changes)
+- Bash — execute shell commands (run tests, git operations, find commands)
+- Grep — search file contents across codebase (best for finding usages, patterns)
+- Glob — find files matching name patterns (e.g., **/*.test.ts)
+Repeated question pattern: "Find all usages of calculateTax across the codebase." Answer: Grep — search file contents. Repeated question pattern: "Find all TypeScript test files." Answer: Glob — find by file name pattern. Repeated question pattern: "Modify a function signature in one file." Answer: Edit — use unique anchor text for targeted change. Repeated question pattern: "Run the test suite." Answer: Bash. Edit limitation: Edit fails if the target text appears multiple times in the file. The fallback is Read + Write to handle the entire file.
+Topic T: Investigation Strategy — Wrappers and Indirect Usage
+When tracing function usage in a codebase, direct callers aren't enough — you must also find indirect callers through wrapper functions. The pattern:
+
+1. Grep for direct callers of functionX
+2. Identify wrapper functions that re-export or wrap functionX
+3. Grep for each wrapper's name to find indirect callers
+Repeated question pattern: "Find all places where deprecated function getUserById is called, including through wrapper modules." Answer: Direct callers via Grep, then identify wrappers, then Grep for each wrapper's name.
+Topic U: Context Management for Long Sessions
+When a session runs long, context degrades. Symptoms:
+
+- Agent re-reads files it already read
+- References "typical patterns" instead of specific findings
+- Mixes up details from different parts of conversation
+- Contradicts earlier decisions
+The wrong fixes:
+
+- Increase max_tokens / context window (treats symptom)
+- Use /compact (rarely the right answer in this dataset)
+- Continue and hope for the best
+The right fix: Extract structured task state into a summary, then inject that summary as initial context in a refreshed/new session. The summary includes:
+
+- Original task description
+- Completed work with summaries
+- Key decisions made
+- Remaining work
+- Critical facts (numbers, IDs, names)
+Special technique for transactional facts: Numerical values, dates, IDs, and amounts mentioned by users should be extracted into a persistent "case facts" block that's included in every prompt — outside the summarized history. This prevents the agent from forgetting "the 15% discount you mentioned."
+Topic V: Position Effects in Long Inputs
+Models reliably process information at the beginning and end of long inputs but may miss content in the middle — the "lost in the middle" effect. Implications:
+
+- Place key findings summary at the beginning of synthesis input
+- Use explicit section headers throughout
+- Critical instructions should be at the start of the prompt, not buried in the middle
+Repeated question pattern: "Synthesis agent reliably cites the first 15K tokens and last 10K tokens of a 75K-token input but misses the middle 50K." Answer: Place key findings summary at the beginning and use explicit section headers — don't try to randomize ordering or summarize to fit a smaller window.
+Topic W: Subagent Tool Scoping (Principle of Least Privilege)
+Each subagent should have only the tools it needs for its specific role. Why? Giving a synthesis subagent access to web_search causes it to make ad-hoc web searches instead of synthesizing — undermining role separation, increasing cost, and producing unpredictable behavior. Repeated question pattern: "Synthesis subagent has 11 tools and frequently calls web_search instead of synthesizing." Answer: Restrict its tool set to only synthesis tools. Repeated question pattern: "Document analysis subagent has a fetch_url tool and uses it to search Google." Answer: Replace fetch_url with a more restricted load_document tool, or remove the general-purpose tool.
+Topic X: Format Normalization with PostToolUse Hooks
+When tools return data in inconsistent formats (Unix timestamps vs ISO 8601, status codes vs human-readable strings), normalize the data before Claude processes it. The right place: PostToolUse hook. The hook intercepts tool results after execution and transforms data before the agent sees it. Wrong places:
+
+- Inside the tool itself (you may not control third-party MCP tools)
+- In the system prompt (probabilistic — agent may forget to convert)
+- After the agentic loop completes (too late)
+Topic Y: MCP Configuration and Secrets
+The rule for credentials: Never hardcode tokens in .mcp.json. Use environment variable expansion: ${GITHUB_TOKEN}. This pattern lets you:
+
+- Commit .mcp.json to version control safely
+- Have each developer set their own personal token in their environment
+- Avoid secrets in git history
+Repeated question pattern: "Six developers each have their own GitHub PAT for an MCP server. How do you configure?" Answer: Project-scoped .mcp.json with ${GITHUB_TOKEN} env var expansion. Document the required env var in the README. Repeated trap: "Configure with placeholder token, instruct developers to override locally" — wrong because it leaves a placeholder in the file. Env var expansion is cleaner.
+Topic Z: Confidence Scores Are Unreliable Without Calibration
+When asked whether to use Claude's self-reported confidence scores for routing decisions: Default answer: No — self-reported confidence is not well-calibrated. Nuanced answer: Confidence scores can be useful as a supplementary signal but must be calibrated against labeled validation data before using for routing thresholds. You collect documents with known correct answers, measure actual error rate at each confidence level, and then set thresholds based on measured (not assumed) error rates. Repeated trap: "Set the threshold at 0.9 and everything above is high-confidence." Wrong — without calibration, 0.9 may not actually correspond to 90% accuracy.
+Topic AA: Aggregate Accuracy Hides Category-Level Gaps
+A system with 92% or 96% overall accuracy may still be terrible at specific document categories or specific fields. The rule: Before reducing human review, analyze accuracy by category and by field. A 96% aggregate may mask:
+
+- 99% accuracy on standard documents
+- 60% accuracy on a specific document subtype
+- 99% accuracy on most fields
+- 50% accuracy on one specific field
+Repeated question pattern: "CISO asks if 92% overall is enough to safely reduce human review." Answer: No — analyze by category and field first; aggregates can mask poor performance on specific segments. Stratified sampling for ongoing monitoring: When you sample documents weekly to monitor accuracy, ensure your sample includes proportional representation of each document type — especially new types that recently entered the corpus.
+Topic BB: Retry-with-Error-Feedback Pattern
+When a validation pass detects an error in extracted data, the retry should include:
+
+1. The original document
+2. The failed extraction output
+3. Specific feedback about what's wrong
+Specific is the key word. "Try again" doesn't help. "The line items don't sum to the stated total" is better. "The line_items values are incorrect — the stated total of $X is correct; re-extract individual line items to find values that sum to $X. Do not change the total." is best. Repeated trap: When line items don't sum to the total, the model may "fix" the wrong field. Tell it explicitly which field is correct and which to re-extract. When retries don't help: If retry-with-error-feedback fails twice for the same field, the information is likely absent from the source document. Route to human review rather than retrying indefinitely.
+PART 3 — RECURRING ANSWER PATTERNS (THE PHRASES TO SPOT)
+These phrases, when they appear in answer options, are very strong signals.
+Phrases that indicate a CORRECT answer:
+
+- "structured error context including failure type, attempted query, partial results"
+- "programmatic prerequisite gate" / "PreToolUse hook"
+- "few-shot examples targeting ambiguous scenarios with reasoning"
+- "preserve both values with source attribution and explicit conflict annotation"
+- "extract structured task state and inject as initial context"
+- "rewrite tool descriptions to include inputs, outputs, when to use, when NOT to use"
+- "nullable field with companion enum/boolean"
+- "independent review instance via separate -p invocation"
+- "multi-pass: per-file local then cross-file integration"
+- "place key findings at the beginning with explicit section headers"
+- "context: fork in skill frontmatter"
+- "structured claim-source mappings"
+Phrases that indicate a WRONG answer:
+
+- "Add to the system prompt: 'Always X' / 'Never Y'" (when reliability/compliance required)
+- "Switch to a more capable model"
+- "Increase max_tokens / context window"
+- "Run the analysis multiple times and use majority vote"
+- "Average the values"
+- "Use self-reported confidence threshold" (without calibration)
+- "Hardcode the token in .mcp.json"
+- "Allow direct subagent-to-subagent communication"
+- "Make the field required to force the model to find it"
+- "Consolidate the tools into a single more general tool"
+- "Add a routing classifier as a pre-processing step"
+Phrases that mark distractors specifically:
+
+- "this can appear effective in demos but fails when..."
+- "works for prototypes but degrades at scale..."
+- "reduces some errors but does not eliminate..."
+- "appropriate for narrow well-defined queries"
+- "suitable when reliability is not a hard requirement"
+If you see these phrases, the option is wrong with very high probability.
+PART 4 — RAPID-FIRE Q&A FOR REVIEW
+These are the highest-frequency question types with their answers: Q: How does the agentic loop know when to stop? A: stop_reason field. tool_use → continue. end_turn → stop. Q: How do you guarantee a business rule (refund limit, branch protection, etc.)? A: Programmatic hook (PreToolUse) or prerequisite gate. Not system prompts. Q: How do you fix tool selection errors? A: Rewrite tool descriptions with inputs, outputs, when-to-use, when-NOT-to-use, boundaries. Q: How do you handle conflicting source data? A: Preserve both with attribution and explicit conflict annotation. Q: What kind of few-shot examples are best? A: 3–6 ambiguous boundary cases with reasoning, not 10–15 typical cases. Q: When use Batch API? A: Latency-tolerant workloads only. Never blocking pre-merge checks. Q: How to make CI output machine-parseable? A: claude -p with --output-format json and --json-schema. Q: How to fix self-review missing bugs? A: Independent review instance via separate -p invocation. Q: How to handle multi-file PRs in CI? A: Multi-pass: per-file pass + cross-file integration pass. Q: How to prevent fabrication of absent values in extraction? A: Nullable fields + companion enums for "approximate," "not_disclosed," etc. Q: How to organize a long CLAUDE.md? A: Split into topic files in .claude/rules/ with path-scoped frontmatter. Q: How to share team commands/skills? A: Project-scoped in .claude/commands/ or .claude/skills/. Q: How to customize personally without affecting team? A: User-scoped in ~/.claude/ Q: How to handle MCP credentials? A: ${ENV_VAR} expansion in .mcp.json. Q: How to prevent context bloat from a verbose skill? A: Add context: fork to the SKILL.md frontmatter. Q: How to handle long-session context degradation? A: Extract structured task state, inject into refreshed session. Q: How to make subagents communicate? A: Through the coordinator, never directly. Q: How to run subagents in parallel? A: Emit multiple Task tool calls in a single coordinator response. Q: How to handle a verbose tool result with mostly irrelevant data? A: PostToolUse hook trims to relevant fields before the model sees it. Q: When does aggregate accuracy mislead? A: When it masks category-specific or field-specific failures. Q: How to monitor extraction quality over time? A: Stratified sampling by document type, with proportional representation of new types.
+PART 5 — STUDY APPROACH FOR REMAINING TIME
+If you have one day to prep:
+
+1. Read Part 1 (foundational mental model) — 30 min
+2. Read Part 2 topics A through G — 1 hr (these are most heavily tested)
+3. Read Part 4 (rapid-fire Q&A) — 30 min
+4. Skim Part 3 (answer pattern phrases) — 30 min
+5. Read Part 2 topics H through BB — 2 hrs
+6. Re-read Part 3 — 30 min
+If you have one hour:
+
+1. Part 1 mental models — 15 min
+2. Part 4 rapid-fire — 20 min
+3. Part 3 answer patterns — 25 min
+The single most valuable thing to internalize is Part 1, Idea 1 (Probabilistic vs Deterministic Enforcement). If you only remember one thing from this guide, it should be: whenever the question says "guaranteed" or "compliance" or "must never," the answer is a hook/gate, not a prompt instruction. That single rule will get you 15–20% of the questions on the exam. The second most valuable thing is Part 1, Idea 3 (Tool Descriptions). When tool selection is the problem, rewriting descriptions is almost always the answer. Good luck.
+Additional Concepts From the Official Guide (Not Covered in My Earlier Insights)
+
+1. Conversational AI Architecture Patterns
+This is a whole scenario I had no data on previously. Key concepts:
+Statelessness of the Claude API
+Every API call is independent. Claude has zero server-side memory. You must send the entire conversation history (all prior user and assistant messages) on every single request. Why this matters on the exam: If a question asks why Claude "forgot" something from two messages ago, the answer is almost always: the application isn't including prior messages in the messages array. It's NOT vector databases, NOT session IDs, NOT context window overflow.
+Cost and Latency Grow With Conversation Length
+Because the full history is sent each time, every turn carries more tokens. After 50+ turns, latency and cost both rise. This is a direct consequence of statelessness, not internal model state.
+Instruction Drift Over Many Turns
+Even within token limits, after 10–15 turns Claude may stop following the system prompt strictly. The cause: accumulated assistant responses dilute the system prompt's relative influence. The model starts pattern-matching to its own prior output rather than the system prompt. Fixes for instruction drift:
+
+- Inject reminder messages at conversation breakpoints (every 4–5 turns)
+- Replace verbose declarative rules with concrete few-shot examples in the system prompt (examples are followed more reliably than abstract rules)
+Context Reduction in Long Conversations — The Hybrid Approach
+When a conversation gets too long, the best technique is the hybrid approach:
+
+- Extract critical structured data (allergies, prices, deadlines) into a compact block — kept verbatim
+- Summarize older general discussion
+- Keep recent exchanges verbatim for conversational coherence
+Pure rolling-window truncation loses critical information. Pure summarization loses precision. The hybrid wins both ways. For very long-running scenarios (months of weekly sessions), use semantic embeddings with retrieval — store all history externally and retrieve relevant exchanges on demand.
+Persona/Behavioral Guidelines Belong in the System Prompt
+Not in the first user message, not in the first assistant message, not environment variables. The system prompt is the only place designed to persist behavioral constraints across the whole conversation.
+Repetitive Greeting Patterns ("Certainly!" "I'd be happy to help!")
+The fix is prefilling the assistant's response with the start of a direct answer. The model continues from the prefill. System prompt instructions to avoid the phrases work less reliably. Temperature changes don't fix this (temperature is randomness, not specific phrasing).
+Real-Time Events During an Active Conversation
+When an external event happens (webhook, package shipped) and you want Claude to incorporate it: prepend the update to the next user message. Don't modify the system prompt mid-session, don't inject synthetic user messages, don't force tool calls every turn.
+Resolving User Contradictions
+When the user states two contradicting goals ("low risk tolerance" + "maximize returns"), the correct response is to surface the contradiction and ask the user to clarify. Never proceed with assumptions, never give two parallel recommendations, never silently pick the most recent statement.
+Reducing Question-Asking That Causes User Abandonment
+When users send vague requests and Claude asks 4+ clarifying questions, 35–40% of users abandon. The fix: state assumptions explicitly and proceed, while inviting corrections. Don't ask all questions in one compound message, don't use a structured form, don't proceed silently.
+Confirmation-Required Tools (Token-Binding Pattern)
+This is an important new pattern. When you have a destructive operation that should be previewed first (e.g., remove_team_member): The wrong approach: A single tool with a dry_run: boolean parameter. The agent will sometimes skip preview by calling with dry_run=false directly. The correct approach: Split into two tools:
+
+- preview_remove_member — returns impact details AND a single-use confirmation token
+- execute_remove_member — requires that token to run
+This makes it architecturally impossible to execute without preview. The token binds execution to a prior preview call. This is a deeper application of the deterministic-enforcement principle.
+Tool-Level Retry Logic for Mixed Error Types
+When a tool has both transient errors (timeouts, succeed on retry) and permanent errors (syntax errors, never succeed), the right place for retry logic is inside the tool itself — not in the agent prompt, not via a uniform exponential backoff for all errors. The tool knows the error type definitively and can handle each correctly.
+
+1. Detailed Concepts Worth Highlighting
+The @path Import Syntax in CLAUDE.md
+You can reference external files inside CLAUDE.md using the @ symbol immediately before the path:
+Coding standards are in @./standards/coding-style.md Test rules in @./standards/testing-requirements.md
+
+- No space between @ and the path
+- Relative and absolute paths work
+- Maximum nesting depth is 5 (imports of imports of imports, up to 5 levels)
+- Relative paths resolve relative to the file containing the import
+This lets you keep CLAUDE.md modular instead of monolithic.
+.claude/commands/ vs .claude/skills/ — Both Exist
+The current Claude Code version unifies them — both create /name commands. But the official exam guide still references .claude/commands/ as the legacy format that's still supported. Either format is acceptable for project slash commands.
+The /memory Command
+A built-in Claude Code command for managing memory between sessions. Opens CLAUDE.md for editing, lets you save notes/preferences/context that persist across sessions. This is different from /compact (which compresses current conversation history).
+MCP Resources (Distinct From Tools)
+I previously focused on MCP tools (functions Claude can call). The guide emphasizes a separate concept: MCP resources — data Claude can READ for context without taking action. Examples of MCP resources:
+
+- Content catalogs (list of all project tasks)
+- Database schemas (structure understanding)
+- Documentation
+- Issue/task summaries
+The advantage: the agent doesn't need exploratory tool calls to discover what data exists. The resource gives it an immediate "map." This reduces both context use and round-trips.
+Error Categories in MCP — Four Distinct Types
+The guide formalizes four error types:
+
+- Transient (timeout, 503, network) — retryable, retry with exponential backoff
+- Validation (bad input format) — not retryable, modify request and retry
+- Business (policy violation, threshold exceeded) — not retryable, explain to user, suggest alternative
+- Permission (access denied) — not retryable, escalate
+The retry strategy depends on the category. A generic error: "failed" gives Claude no information to choose the right strategy.
+Pydantic for Validation
+Pydantic is a Python validation library. For the exam:
+
+- Structural validation: types, requiredness, enum constraints — checked in code after Claude returns JSON
+- Semantic validation: custom validators for business logic (sum equals total, start_date before end_date)
+- Pydantic models can generate JSON Schema that you pass to tool_use — single source of truth for schema definition
+- On Pydantic validation failure, construct a specific error message and re-prompt Claude with that error context (the retry-with-feedback pattern)
+Self-Correction by Extracting Both Values
+A specific pattern for catching internal contradictions in extraction:
+{ "stated_total": "$150.00", "calculated_total": "$145.00", "conflict_detected": true, "line_items": [...] }
+The model extracts the stated value AND calculates a value from raw data. If they differ, the conflict_detected flag triggers human handling. This catches errors that JSON schema validation can't.
+Format Normalization Rules in Prompts
+When using strict JSON schemas, add explicit normalization rules to the prompt to prevent semantic errors:
+Normalization:
+
+- Dates: always ISO 8601 (YYYY-MM-DD); "yesterday" → compute absolute date
+- Currency: amount + currency code; "five bucks" → {"amount": 5, "currency": "USD"}
+- Percentages: decimal; "half" → 0.5
+This prevents the situation where JSON is syntactically valid but the values are inconsistent with each other.
+Subagent Context Budgets
+Each subagent operates within a limited context budget. The coordinator acts as a separate context layer that:
+
+- Aggregates subagent outputs
+- Stores global state
+- Allocates context
+This prevents "context leakage" — one agent consuming the window with information irrelevant to other agents. For each subagent call: send minimal context (specific task + necessary data), instruct the subagent to return structured results (not raw dumps), and use allowedTools to limit the subagent's toolset (fewer tools = lower context cost).
+Structured State Persistence for Crash Recovery
+For long-running multi-agent tasks, each agent exports its state to a known location (e.g., a JSON file):
+agent-state/web-search-agent.json { "status": "completed", "queries_executed": [...], "key_findings": [...], "coverage": [...], "gaps": [...] }
+The coordinator loads a manifest on resume:
+agent-state/manifest.json { "web-search": "completed", "doc-analysis": "in_progress", "synthesis": "not_started" }
+This enables recovery after a crash without restarting the entire workflow.
+Coverage Annotations in Final Output
+When some research subagents fail or return partial data, the synthesis output should explicitly annotate coverage:
+Music section (PARTIAL COVERAGE — search agent timeout)
+[partial results] ⚠️ Note: coverage limited due to search agent timeout.
+This is graceful degradation — preserve value from what worked, but be transparent about gaps.
+Render Content by Type
+Don't force everything into one format in the final output:
+
+- Financial data → tables
+- News and analysis → prose
+- Technical findings → structured lists
+- Time series → chronological order
+Nuanced Customer Service Escalation
+A more nuanced pattern than I previously gave: Customer says: "This is outrageous, I'm very unhappy with the quality!"
+
+1. Acknowledge the emotion: "I understand your frustration"
+2. Offer concrete resolution: "I can offer a replacement or a refund"
+3. Only escalate if customer reiterates the desire for a human
+Key principle: do NOT escalate on the first expression of dissatisfaction. Dissatisfaction ≠ explicit request for a manager. But if the customer insists again, escalate immediately.
+Tool-Level Retry Anti-Pattern
+Anti-pattern: Infinite retries inside a subagent — wastes latency and resources. Correct approach: local recovery (1–2 retries) inside subagent, then propagate to coordinator if still failing. Don't retry indefinitely at the lowest level.
+
+1. Out-of-Scope Topics (What NOT to Study)
+The guide explicitly lists topics that will not appear on the exam. Don't waste time on these:
+
+- Fine-tuning Claude models or training custom models
+- Authentication, billing, account management for the API
+- Specific programming language frameworks (beyond what's needed for tool/schema config)
+- Deploying or hosting MCP servers (infrastructure, networking, containers)
+- Claude's internal architecture, training, or weights
+- Constitutional AI, RLHF, safety training
+- Embedding models or vector database implementation
+- Computer use (browser automation, desktop)
+- Vision (image analysis)
+- Streaming API or server-sent events
+- Rate limiting, quotas, detailed cost calculations
+- OAuth, API key rotation
+- Cloud-provider-specific config (AWS, GCP, Azure)
+- Performance benchmarks
+- Prompt caching implementation details (just know it exists)
+- Token counting algorithms / tokenization specifics
+This is genuinely useful — many candidates over-prepare on these areas.
+
+1. Specific Numbers Worth Memorizing
+These exact numbers come up in scenarios:
+
+- Refund threshold example: $500 (above this requires manager approval / hook)
+- Batch API: 50% cost savings, up to 24-hour processing window
+- SLA planning: if you need results in 30 hours, submit batches at least 6 hours before deadline (30 − 24 = 6)
+- Maximum @path nesting depth in CLAUDE.md: 5
+- Multi-pass review threshold: large PRs (10+ files, scenarios use 14 files)
+- First-contact resolution target: 80% (customer support scenario)
+- Behavioral drift onset: 10–15 turns (even within token limits)
+- Reminder injection frequency: every 4–5 turns (for instruction drift)
+- User abandonment from too many clarifying questions: 35–40%
+
+1. What I Got Wrong or Underemphasized Earlier
+Slash command location: I correctly said .claude/commands/ for project. The guide also confirms .claude/skills/ is the current/preferred format and both work. Customer frustration → escalation: I said "Customer just frustrated + simple issue → resolve, don't escalate." The guide adds important nuance: acknowledge the emotion first, then offer resolution, AND only escalate if the customer reiterates the desire for a human. The acknowledgment step is critical — don't just jump to resolution without acknowledging frustration. MCP resources: I focused entirely on MCP tools. Resources are a separate, distinct concept worth knowing — they reduce the need for exploratory tool calls. Confirmation tokens: The two-tool token-binding pattern (preview tool generates token, execute tool requires token) is a deeper application of deterministic enforcement that I didn't cover. Tool-internal retry logic: I emphasized structured error context returned to the agent. The guide adds: for transient errors, handle retries inside the tool itself rather than relying on the agent to interpret a flag. The tool has definitive knowledge of error types. Statelessness of Claude API: I implied this but didn't make it explicit enough. The model has zero server-side memory — every API call is fully independent, history must be sent every time. This is the root cause of many conversational pattern questions. Hybrid context reduction: I covered "extract task state and inject into refreshed session" but didn't explicitly cover the three-part hybrid: structured facts extraction + summarization of older content + verbatim retention of recent exchanges. The hybrid is the canonical answer for long-conversation context reduction.
+
+
+PART 6 — ADDITIONAL CONCEPTS FROM THE OFFICIAL PDF (NEW MATERIAL)
+These are concepts that appear in the official exam guide but are missing, wrong, or under-explained in your existing notes. Same teaching style as before — the why, the patterns, and the traps.
+Topic CC: The Real Exam Structure (Correction)
+Your notes claim there are 8 scenarios. There are only 6. The two extras ("Conversational AI Architecture Patterns" and "Agentic AI Tools") do not exist in the official guide. You'll see 4 of these 6, randomly selected:
+
+1. Customer Support Resolution Agent
+2. Code Generation with Claude Code
+3. Multi-Agent Research System
+4. Developer Productivity with Claude
+5. Claude Code for CI
+6. Structured Data Extraction
+Why this matters: Anything in your notes about API statelessness, instruction drift at 10–15 turns, hybrid context reduction with three-way splits, confirmation tokens, the 35–40% abandonment statistic, repetitive greeting prefills, and real-time event injection — none of that is grounded in the official guide. Don't memorize numbers from those sections.
+Topic DD: AgentDefinition and the Task Tool Requirement
+A coordinator that wants to spawn subagents must have "Task" in its allowedTools list. Without it, the coordinator literally cannot delegate — it will try to do everything itself. The pattern:
+coordinator_config = AgentDefinition( description: "...", system_prompt: "...", allowedTools: ["Task", ...other tools] )
+Repeated trap: "Coordinator isn't spawning subagents, what's wrong?" — Answer: "Task" is missing from allowedTools. Not a prompt issue, not a model issue. Each subagent also has its own AgentDefinition with its own scoped tools. Subagents do NOT automatically inherit the coordinator's context — you must pass findings explicitly in the subagent's prompt.
+Topic EE: fork_session vs --resume
+These are two different session-management mechanisms your notes barely cover:
+
+- --resume — continue a specific named conversation. Use when prior context is mostly still valid.
+- fork_session — create parallel branches from a shared baseline to explore divergent approaches (e.g., "compare strategy A vs strategy B from the same codebase analysis").
+Repeated question pattern: "You want to compare two refactoring approaches starting from the same codebase analysis." Answer: fork_session — not two separate sessions, not --resume. Repeated question pattern: "Prior tool results are stale because files changed." Answer: Start a fresh session with an injected summary, not --resume. Resume is for valid prior context, not stale context.
+Topic FF: The /memory Command (Diagnostic Tool)
+When team members report inconsistent Claude behavior, /memory shows which CLAUDE.md files are actually loaded in the current session. This is the diagnostic command. Repeated question pattern: "A teammate's Claude follows a rule that yours doesn't, even though you both pulled the same code." Answer: Run /memory to verify which files are loaded — likely the rule is in the other person's user-level config, not project-level. This is different from /compact (compresses context) and from session management commands.
+Topic GG: Three Levels of CLAUDE.md Hierarchy
+Your notes list two levels (user, project). The PDF lists three:
+
+1. User-level: ~/.claude/CLAUDE.md
+2. Project-level: .claude/CLAUDE.md or root CLAUDE.md
+3. Directory-level: subdirectory CLAUDE.md files for that subtree
+The directory-level option is bound to that directory and its descendants. It's the wrong tool when conventions span many directories — that's what .claude/rules/ with glob patterns is for. Decision rule:
+
+- Convention applies everywhere → root project CLAUDE.md
+- Convention applies to one subdirectory tree → subdirectory CLAUDE.md
+- Convention applies to files by pattern across many directories (like all *.test.tsx files) → .claude/rules/ with glob frontmatter
+- Personal customization → user-level CLAUDE.md
+Topic HH: Skill Frontmatter — Three Options, Not One
+Your notes only mention context: fork. The PDF lists three frontmatter options:
+
+- context: fork — runs the skill in an isolated subagent context. Verbose output stays out of main session.
+- allowed-tools — restricts the skill's tool access during execution (e.g., limit to file writes only, preventing destructive operations).
+- argument-hint — prompts the developer for required parameters if they invoke the skill without arguments.
+Repeated question pattern: "A skill has access to Bash and developers occasionally run destructive commands by accident." Answer: Add allowed-tools frontmatter restricting it to read/write only.
+Topic II: Interview Pattern (Pre-Implementation Questioning)
+When working in an unfamiliar domain, the most reliable pattern is: have Claude ask you questions before implementing. This surfaces design considerations the developer hasn't anticipated (cache invalidation, failure modes, edge cases). This is distinct from plan mode — plan mode explores the codebase. The interview pattern explores the requirements through dialogue. When to use: unfamiliar domain, ambiguous requirements, design decisions with multiple defensible answers.
+Topic JJ: Test-Driven Iteration
+A reliability pattern your notes skip entirely: write a test suite first covering expected behavior, edge cases, and performance requirements. Then iterate by sharing test failures with Claude. Why it works: Test failures are concrete, machine-verifiable feedback. Prose feedback like "this isn't quite right" is interpreted inconsistently. Repeated question pattern: "Claude's implementation keeps missing edge cases when you describe them in prose." Answer: Write a test suite covering those edge cases, share failures iteratively. Not "write more detailed prose," not "use a stronger model."
+Topic KK: Concrete I/O Examples Beat Prose Descriptions
+When prose descriptions of a transformation produce inconsistent results, 2–3 concrete input/output examples fix the problem faster than rewriting instructions. The pattern:
+Input: "John's email is john@x.com" Output: { "name": "John", "email": "john@x.com" }
+Input: "Contact: jane@y.com (Jane)" Output: { "name": "Jane", "email": "jane@y.com" }
+Repeated trap: "Description is interpreted inconsistently — should I rewrite the prose more carefully?" Answer: No, add concrete examples. They're more reliable than any amount of prose tuning.
+Topic LL: Sequential vs Parallel Issue Resolution
+When Claude makes multiple mistakes, your fix strategy depends on whether the issues interact:
+
+- Issues interact (fixing one affects another) → provide all issues in one detailed message
+- Issues are independent → fix sequentially, one per turn
+Repeated question pattern: "Claude made three bugs in different functions." Answer: If the bugs are unrelated, fix sequentially. If they share state or one fix would break another, fix in one message.``
+Topic MM: Splitting Generic Tools (Not Just Renaming)
+Your notes correctly say "rewrite descriptions" for tool selection problems. The PDF adds another option: split a generic tool into purpose-specific tools. Example from the PDF: split a generic analyze_document into:
+
+- extract_data_points
+- summarize_content
+- verify_claim_against_source
+Each new tool has a defined input/output contract and a clear use case. When to split: A tool is being misused for tasks that should be different operations entirely. Renaming/redescribing won't fix this — the tool is doing too many things. When to rewrite description: Tools have distinct purposes but the descriptions don't differentiate clearly.
+Topic NN: System Prompt Keyword Sensitivity
+A subtle anti-pattern: keyword-laden system prompt instructions can override well-written tool descriptions. If your system prompt says "always check the documents for X," Claude may favor a document_search tool even when web_search is correct. Debugging rule: When tool selection is broken, check the system prompt for accidental keyword associations BEFORE assuming the tool descriptions are wrong.
+Topic OO: Multiple Customer Match Handling
+When get_customer returns multiple matches, the agent must ask for additional identifiers (date of birth, last 4 of phone, account number). Heuristic selection ("pick the most recent one") is an anti-pattern that causes wrong-customer errors. Repeated question pattern: "Two customers have the same name. What does the agent do?" Answer: Ask the user for an additional identifier. Not "pick the more recent account," not "pick the one with more orders."
+Topic PP: Sentiment and Self-Confidence as Escalation Triggers
+Two anti-patterns the PDF explicitly calls out:
+
+1. Sentiment analysis as escalation trigger — sentiment doesn't correlate with case complexity. A frustrated customer with a simple problem doesn't need a human; a calm customer with a policy gap does.
+2. Self-reported confidence as escalation trigger — the agent is already incorrectly confident on hard cases, so its own confidence assessment is unreliable for routing.
+Repeated trap: "Add a sentiment classifier to escalate angry customers" or "have the model self-report confidence and route below threshold." Both are wrong. The right answer is explicit escalation criteria with few-shot examples.
+Topic QQ: detected_pattern Field for False Positive Analysis
+For code review systems, include a detected_pattern field in each finding that records what code construct triggered it (e.g., "nested try/catch", "uppercase constant in async function"). Why: When developers dismiss findings, you can analyze which patterns produce false positives systematically and fix the prompt for that category. This is a feedback-loop design pattern, not just an extraction pattern.
+Topic RR: Dual Extraction for Self-Validation
+A specific pattern for catching internal contradictions:
+{ "stated_total": 150.00, "calculated_total": 145.00, "conflict_detected": true, "line_items": [...] }
+The model extracts the stated value AND independently calculates from raw line items. The conflict_detected flag triggers human review. This catches errors that JSON schema validation can't — schema validates structure, this validates internal consistency.
+Topic SS: Format Normalization Rules in the Prompt
+Strict JSON schemas enforce structure but NOT format consistency. Add explicit normalization rules to the prompt alongside the schema:
+Normalization rules:
+
+- Dates: ISO 8601 (YYYY-MM-DD); resolve "yesterday" to absolute date
+- Currency: { amount, currency_code }; "five bucks" → { amount: 5, currency: "USD" }
+- Percentages: decimal form; "half" → 0.5
+Without these rules, you get syntactically valid JSON with semantically inconsistent values.
+Topic TT: "unclear" Enum Value Pattern
+In addition to the "other" + detail string pattern your notes cover, the PDF adds a related pattern for ambiguous cases: include "unclear" as an enum value.
+contract_type: enum ["service", "purchase", "employment", "lease", "other", "unclear"] contract_type_detail: nullable string
+"other" = the document specifies a type that doesn't fit your enum. "unclear" = the document doesn't specify clearly enough to choose. These are different states and routing decisions should differ (other → maybe extend enum; unclear → human review).
+Topic UU: CI Re-Review Context Injection
+When re-running code review after new commits on the same PR, pass the prior review findings into context and instruct Claude to report only new or still-unaddressed issues. Why: Without this, every re-run produces duplicate comments on already-discussed issues, creating noise that erodes developer trust. Repeated question pattern: "PR review keeps posting the same comments after each commit." Answer: Inject prior findings, instruct to report only new/unaddressed issues. Not "deduplicate post-hoc," not "only run on new commits."
+Topic VV: Test Generation Context
+When generating tests in CI, pass existing test files into context so Claude doesn't suggest scenarios already covered. Also document in CLAUDE.md:
+
+- Available test fixtures
+- Testing standards (what counts as a "valuable" test)
+- Naming conventions
+This dramatically reduces low-value test output.
+Topic WW: Disabling High-False-Positive Categories Temporarily
+When one review category (e.g., "code style suggestions") produces high false positives that erode developer trust in the accurate categories, the right move is temporarily disable that category while you improve the prompt for it. Why: Trust spillover. If 1 in 3 style comments is wrong, developers start ignoring all comments — including the accurate security findings. Repeated trap: "Reduce false positives by adding 'be conservative' to the prompt." Wrong — vague instructions don't improve precision. Disable the category, fix the prompt with explicit criteria, re-enable.
+Topic XX: MCP Resources vs MCP Tools
+Your notes touch this lightly; the PDF treats it as a first-class concept.
+
+- MCP Tools = functions the agent CALLS to take action (process_refund, lookup_order)
+- MCP Resources = readable content the agent CONSULTS for context (issue catalog, DB schema, doc hierarchy)
+Why resources matter: They prevent exploratory tool calls. Instead of the agent calling list_issues then list_projects then list_users to discover what exists, a resource gives it the "map" upfront — saving context tokens and round-trips. Repeated question pattern: "Agent makes too many exploratory tool calls just to discover available data." Answer: Expose the data catalog as an MCP resource, not as another tool.
+Topic YY: Replacing Generic Tools with Constrained Alternatives
+Specific PDF example: replace fetch_url (which an agent might use to Google search) with load_document that validates document URLs only. The pattern: when an agent misuses a generic tool, replace it with a more constrained version that architecturally prevents the misuse. Repeated question pattern: "Document analysis subagent uses fetch_url to search the web instead of analyzing." Answer: Replace fetch_url with load_document, not "instruct the agent not to search."
+Topic ZZ: Plan Mode Specific Triggers
+The PDF gives concrete numerical triggers worth memorizing:
+
+- Library migration affecting 45+ files → plan mode
+- Microservice restructuring → plan mode
+- Choosing between integration approaches with different infrastructure → plan mode
+- Single-file bug fix with clear stack trace → direct execution
+- Adding a date validation conditional → direct execution
+Combined pattern: plan mode for investigation/design + direct execution for implementation.
+Topic AAA: Batch API SLA Math
+The PDF expects you to do this calculation: if your SLA requires results in 30 hours and the Batch API takes up to 24 hours, you must submit batches at least 6 hours before the deadline (preferably with margin — every 4 hours). Repeated question pattern: "We need results within 30 hours. How often should we submit batches?" Answer: Every 4–6 hours, leaving margin for the 24-hour processing window. Repeated trap: "Submit once and hope it finishes in time." Wrong — there's no latency SLA.
+Topic BBB: Sample Test Prompts Before Batching at Scale
+Before submitting a batch of 100+ documents, test the prompt on a small sample (5–10 documents) to validate first-pass success rate. Bad prompts at batch scale = lots of resubmissions = wiped-out cost savings. This is a workflow design pattern, not a technical one.
+Topic CCC: Coordinator Iterative Ref

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CCAR-F Study Guide — Claude Certified Architect, Foundations</title>
+<meta name="description" content="A complete, self-contained study curriculum and exam simulator for Anthropic's Claude Certified Architect – Foundations (CCAR-F) certification.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#9678;</text></svg>">
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to main content</a>
+
+<header class="topbar">
+  <button class="iconbtn navtoggle" id="navToggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="sidebar">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+  </button>
+  <a class="brand" href="#/">
+    <span class="brand-mark" aria-hidden="true">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+        <polyline points="2 17 12 22 22 17"/>
+        <polyline points="2 12 12 17 22 12"/>
+      </svg>
+    </span>
+    <span class="brand-text"><strong>CCAR-F</strong><span class="brand-sub">Architect Guide</span></span>
+  </a>
+  <div class="topbar-spacer"></div>
+  <button class="searchbtn" id="searchBtn" aria-label="Search units, questions and terms">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4.3-4.3"/></svg>
+    <span class="sb-text">Search</span>
+    <kbd class="sb-kbd">⌘K</kbd>
+  </button>
+  <a class="topbar-progress" href="#/" title="Units marked complete — open the readiness dashboard">
+    <div class="tp-bar"><div class="tp-fill" id="tpFill"></div></div>
+    <span class="tp-label" id="tpLabel">0/30</span>
+  </a>
+  <button class="iconbtn" id="shortcutsBtn" aria-label="Keyboard shortcuts guide" title="Keyboard shortcuts (?)">
+    <kbd style="font-family:var(--mono);font-weight:700;font-size:0.85rem;">?</kbd>
+  </button>
+  <button class="iconbtn" id="themeToggle" aria-label="Switch colour theme">
+    <svg class="ico-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg>
+    <svg class="ico-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg>
+  </button>
+</header>
+
+<div class="shell">
+  <nav class="sidebar" id="sidebar" aria-label="Course navigation">
+    <div class="sidebar-inner" id="sidebarInner"><!-- built by app.js --></div>
+  </nav>
+  <div class="scrim" id="scrim" hidden></div>
+  <main id="main" tabindex="-1">
+    <div id="view"><!-- built by app.js --></div>
+    <footer class="sitefoot">
+      <p><strong>Unofficial study resource.</strong> Content is derived from Anthropic's published
+      <em>Claude Certified Architect – Foundations Exam Guide</em>, Version 1.0 (effective July&nbsp;2026).
+      Not affiliated with or endorsed by Anthropic. Always re-check the current official guide before you sit the exam.</p>
+      <p class="verified">Blueprint verified against the official exam guide on <time datetime="2026-08-20">20 August 2026</time>. <a href="#/sources">Sources &amp; verification →</a> · <button class="linkbtn" id="footerShortcutsBtn" type="button">Keyboard shortcuts (?)</button></p>
+    </footer>
+  </main>
+</div>
+
+<script src="content/meta.js"></script>
+<script src="content/d1.js"></script>
+<script src="content/d2.js"></script>
+<script src="content/d3.js"></script>
+<script src="content/d4.js"></script>
+<script src="content/d5.js"></script>
+<script src="content/glossary.js"></script>
+<script src="assets/app.js"></script>
+<script src="assets/motion.js"></script>
+</body>
+</html>
