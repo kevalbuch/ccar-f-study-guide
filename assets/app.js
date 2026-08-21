@@ -482,11 +482,15 @@
         modal.id = 'diagramModal';
         modal.className = 'palette-scrim';
         modal.innerHTML = '<div class="diagram-modal-box" role="dialog" aria-modal="true">' +
-          '<div class="shortcuts-header" style="margin-bottom:1rem;">' +
-          '<h3>' + captionText + '</h3>' +
+          '<div class="diagram-modal-header">' +
+          '<div class="dmh-left">' +
+          '<span class="dmh-badge"><i class="dmh-dot"></i> Architecture Diagram</span>' +
+          '<h3 class="dmh-title">' + captionText + '</h3>' +
+          '</div>' +
           '<button class="iconbtn closebtn" id="closeDiagModal" aria-label="Close diagram inspection">✕</button>' +
           '</div>' +
           '<div class="diagram-modal-body">' + svg.outerHTML + '</div>' +
+          '<div class="diagram-modal-footer"><span class="dmf-hint">Click outside or press ✕ to close</span></div>' +
           '</div>';
 
         document.body.appendChild(modal);
