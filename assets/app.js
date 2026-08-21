@@ -2274,7 +2274,7 @@
     return head.charAt(0).toUpperCase() + head.slice(1);
   }
 
-  // Intercept click on in-page section links (#sec-...) to prevent 404 router resets
+  // Intercept click on in-page section links (#sec-...) and force SPA re-route on hash clicks
   document.addEventListener('click', function (e) {
     var a = e.target.closest('a[href^="#"]');
     if (!a) return;
@@ -2285,6 +2285,10 @@
       var el = document.getElementById(id);
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    } else if (href && href.indexOf('#/') === 0) {
+      if (href === location.hash) {
+        route();
       }
     }
   });
