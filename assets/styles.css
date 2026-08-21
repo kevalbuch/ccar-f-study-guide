@@ -606,18 +606,22 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-fam
     linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
   background-size: 16px 16px, 32px 32px, 32px 32px;
-  border: 1px solid var(--line-2);
   border-radius: var(--radius-lg);
-  overflow-x: auto;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
-  cursor: pointer;
-  transition: border-color 0.35s ease, box-shadow 0.35s ease, filter 0.35s ease;
+  border: 1px solid var(--line);
+  background-color: #080c14;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+  background-size: 16px 16px;
+  padding: 1.5rem 1.75rem;
+  overflow: visible;
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: center center;
+  cursor: zoom-in;
 }
 :root[data-theme="light"] .figure .fig-box {
   background-color: #0d131f;
 }
 .figure .fig-box::after {
-  content: '🔍 Click to maximize';
+  content: '🔍 Inspect diagram';
   position: absolute;
   top: 0.75rem;
   right: 0.75rem;
@@ -633,9 +637,10 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-fam
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 .figure:hover .fig-box {
+  transform: scale(1.04);
   border-color: var(--accent);
-  box-shadow: 0 20px 48px -8px rgba(0, 0, 0, 0.6), 0 0 0 1.5px var(--accent-line), 0 0 24px -4px var(--accent-soft);
-  filter: brightness(1.05);
+  box-shadow: 0 25px 60px -10px rgba(0, 0, 0, 0.8), 0 0 0 2px var(--accent), 0 0 30px var(--accent-soft);
+  filter: brightness(1.03);
 }
 .figure:hover .fig-box::after {
   opacity: 1;
@@ -643,16 +648,41 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-fam
 }
 .figure svg { width: 100%; height: auto; display: block; min-width: 440px; }
 .figure figcaption { font-size: .84rem; color: var(--ink-3); margin-top: .75rem; font-family: var(--mono); text-align: center; }
-.figure svg text { fill: #f1f5f9; stroke: none; font-family: var(--sans); }
-.figure svg text.mono { font-family: var(--mono); }
-.figure svg text.dim { fill: #94a3b8; }
-.figure svg .stroke { stroke: rgba(255, 255, 255, 0.18); }
-.figure svg .box { fill: #1e293b; stroke: rgba(255, 255, 255, 0.22); }
-.figure svg .boxA { fill: rgba(179, 86, 57, 0.22); stroke: #d97757; }
-.figure svg .boxOk { fill: rgba(4, 128, 89, 0.28); stroke: #10b981; }
-.figure svg .boxBad { fill: rgba(225, 29, 72, 0.28); stroke: #f43f5e; }
-.figure svg .arrow { stroke: #f97316; stroke-width: 2; }
-.figure svg .arrowhead { fill: #f97316; stroke: none; }
+
+svg text,
+.figure svg text,
+.diagram-modal-body svg text {
+  fill: #f8fafc !important;
+  stroke: none !important;
+  stroke-width: 0 !important;
+  font-family: var(--sans) !important;
+  font-weight: 500 !important;
+  paint-order: fill !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+  text-rendering: optimizeLegibility !important;
+}
+
+svg text.mono,
+.figure svg text.mono,
+.diagram-modal-body svg text.mono {
+  font-family: var(--mono) !important;
+}
+
+svg text.dim,
+.figure svg text.dim,
+.diagram-modal-body svg text.dim {
+  fill: #94a3b8 !important;
+}
+
+.figure svg .stroke { stroke: rgba(255, 255, 255, 0.25); stroke-width: 1.5; }
+.figure svg .box { fill: #1e293b; stroke: rgba(255, 255, 255, 0.28); stroke-width: 1.5; }
+.figure svg .boxA { fill: rgba(179, 86, 57, 0.25); stroke: #d97757; stroke-width: 1.8; }
+.figure svg .boxOk { fill: rgba(4, 128, 89, 0.3); stroke: #10b981; stroke-width: 1.8; }
+.figure svg .boxBad { fill: rgba(225, 29, 72, 0.3); stroke: #f43f5e; stroke-width: 1.8; }
+.figure svg .arrow { stroke: #f97316; stroke-width: 2.2; }
+.figure svg .arrowhead { fill: #f97316; stroke: none !important; stroke-width: 0 !important; }
+
 .palette-scrim,
 .diag-modal-backdrop {
   position: fixed;
