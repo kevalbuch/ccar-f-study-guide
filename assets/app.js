@@ -227,19 +227,19 @@
       h += '</div></details>';
     });
 
-    h += '<div class="nav-group"><div class="nav-title">Practice</div>';
+    h += '<div class="nav-group"><div class="nav-title nav-title-practice">Practice</div>';
     h += navLink('#/drill', 'Question drills');
     h += navLink('#/exam', 'Full mock exam');
     h += navLink('#/flashcards', 'Flashcards');
     h += navLink('#/glossary', 'Glossary');
     h += '</div>';
 
-    h += '<div class="nav-group"><div class="nav-title">Reference</div>';
+    h += '<div class="nav-group"><div class="nav-title nav-title-reference">Reference</div>';
     h += navLink('#/patterns', 'Answer-pattern cheatsheet');
     h += navLink('#/sources', 'Sources & verification');
     h += '</div>';
 
-    h += '<div class="nav-group"><div class="nav-title">Data &amp; Backup</div>';
+    h += '<div class="nav-group"><div class="nav-title nav-title-data">Data &amp; Backup</div>';
     h += '<button class="nav-link-btn" id="exportNavBtn">↓ Export progress (JSON)</button>';
     h += '<button class="nav-link-btn" id="importNavBtn">↑ Import progress (JSON)</button>';
     h += '<input type="file" id="importFileInput" accept=".json" style="display:none">';
