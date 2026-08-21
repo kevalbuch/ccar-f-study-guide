@@ -367,17 +367,23 @@
     if (mode === 'study') {
       var prev = store.quiz[q.id];
       node._onGraded = opts.onGraded || null;
-      node.querySelector('.js-check').addEventListener('click', function () {
-        var picked = picks(node);
-        if (!picked.length) {
-          announce('Select an answer first.');
-          return;
-        }
-        grade(node, q, picked, true);
-      });
-      node.querySelector('.js-reveal').addEventListener('click', function () {
-        grade(node, q, picks(node), false);
-      });
+      var chkBtn = node.querySelector('.js-check');
+      if (chkBtn) {
+        chkBtn.addEventListener('click', function () {
+          var picked = picks(node);
+          if (!picked.length) {
+            announce('Select an answer first.');
+            return;
+          }
+          grade(node, q, picked, true);
+        });
+      }
+      var revBtn = node.querySelector('.js-reveal');
+      if (revBtn) {
+        revBtn.addEventListener('click', function () {
+          grade(node, q, picks(node), false);
+        });
+      }
       if (prev) grade(node, q, prev.picked || [], false, true);
     } else {
       // exam mode — record selections into the shared state object
@@ -1030,6 +1036,14 @@
     h += '</div>';
 
     return h;
+  }
+
+  function calcReadingTime(u) {
+    if (!u) return 3;
+    var text = (u.concept || '') + ' ' + (u.tldr || '') + ' ' + (u.example || '') + ' ' + (u.exam || '');
+    var words = text.replace(/<[^>]*>/g, ' ').trim().split(/\s+/).filter(Boolean).length;
+    var mins = Math.ceil(words / 200);
+    return Math.max(2, mins || 3);
   }
 
   /* ---------------------------------------------------------------------- unit */
@@ -1953,15 +1967,18 @@
       }).join('');
     }
 
-    input.addEventListener('input', function () { paint(this.value); });
+    if (input) input.addEventListener('input', function () { paint(this.value); });
 
-    document.querySelector('.gl-alpha').addEventListener('click', function (e) {
-      var b = e.target.closest('button[data-letter]');
-      if (!b) return;
-      input.value = ''; paint('');
-      var t = document.getElementById('gl-letter-' + b.getAttribute('data-letter'));
-      if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
+    var alphaEl = document.querySelector('.gl-alpha');
+    if (alphaEl) {
+      alphaEl.addEventListener('click', function (e) {
+        var b = e.target.closest('button[data-letter]');
+        if (!b) return;
+        if (input) input.value = ''; paint('');
+        var t = document.getElementById('gl-letter-' + b.getAttribute('data-letter'));
+        if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
 
     paint('');
 
